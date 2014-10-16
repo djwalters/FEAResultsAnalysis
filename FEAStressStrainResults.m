@@ -1,0 +1,296 @@
+function FEAStressStrainResults(LoadType)
+% Function info
+%
+% INPUTS:
+%   LoadType: A string variable that determines what type of load being
+%   analyzed.  Acceptable variables are as follows:
+%       'compressionZ'
+%       'compressionY'
+%       'compressionX'
+%       'shearXY'
+%       'shearYZ'
+%       'shearXZ'
+
+%% Set Plot Controls
+ebwidth = 0.1;  % Errorbar cap width
+font = 'Palatino Linotype';
+fsize = 11;
+msize = 5;
+
+%% Import Files
+% Use userinterface to select initial results file
+[File1,Pathname1] = uigetfile('C:\Doctoral Researach\Mechanical Testing\Radiation Recrystallization\Fabric Tensor and ANSYS\Linux FTP Mirror\PhD Work\MicroMechanics\FEA Files\ANSYS\*.dat','Choose the .dat results file');
+filename1 = fullfile(Pathname1,File1);
+
+% Use userinterface to select final results file
+[File2,Pathname2] = uigetfile([Pathname1,'*.dat'],'Choose the .dat results file');
+filename2 = fullfile(Pathname2,File2);
+
+% Import the selected files
+[Time1,DispX1,DispY1,DispZ1,FX1,FY1,FZ1] = importfile(filename1);
+[Time2,DispX2,DispY2,DispZ2,FX2,FY2,FZ2] = importfile(filename2);
+
+%% Clean up Data
+% Trim off extraneous zeros if the time column reads zero (this means that
+% no data was recorded.
+for i = length(Time1):-1:2
+    if Time1(i) == 0
+        Time1(i) = [];
+        DispX1(i) = [];
+        DispY1(i) = [];
+        DispZ1(i) = [];
+        FX1(i) = [];
+        FY1(i) = [];
+        FZ1(i) = [];
+    end
+end
+
+for i = length(Time2):-1:2
+    if Time2(i) == 0
+        Time2(i) = [];
+        DispX2(i) = [];
+        DispY2(i) = [];
+        DispZ2(i) = [];
+        FX2(i) = [];
+        FY2(i) = [];
+        FZ2(i) = [];
+    end
+end
+% Adjust dimensions to meters (since it currently outputs in mm)
+DispX1 = DispX1*10^-3;
+DispY1 = DispY1*10^-3;
+DispZ1 = DispZ1*10^-3;
+DispX2 = DispX2*10^-3;
+DispY2 = DispY2*10^-3;
+DispZ2 = DispZ2*10^-3;
+
+% Prompt for edge lengths of sample
+SampDims = input('Input edge lengths of the sample in mm [X,Y,Z]\n');
+SampDims = SampDims*10^-3;  %Adjust to meters
+
+
+%% Calculate Modulii
+switch LoadType
+    case 'shearXY'
+        height = SampDims(3);
+        area = SampDims(1)*SampDims(2);
+        
+        stressZ1 = abs(FX1/area);
+        stressZ2 = abs(FX2/area);
+        
+        strainZ1 = atan(abs(DispX1/height));
+        strainZ2 = atan(abs(DispX2/height));
+        
+        % Fit data
+        [ModEqn1,ModGOF1,Modulus1,ModulusCI1] = fitdata(stressZ1,strainZ1,'shear')
+        [ModEqn2,ModGOF2,Modulus2,ModulusCI2] = fitdata(stressZ2,strainZ2,'shear')
+        
+        figure('Name','Shear Stress/Strain Comparison','NumberTitle','off')
+        plot(ModEqn1,'m-',strainZ1,stressZ1,'b.')
+        grid on
+        hold on
+        plot(ModEqn2,'r-.',strainZ2,stressZ2,'k*')
+        x1 = xlabel('Shear Strain (rad)');
+        y1 = ylabel('Stress (Pa)');
+        leg = legend('Non-Layered Data','Non-Layered Fit',...
+            'Layered Data','Layered Fit','Location','best');
+        set(gca,'FontName',font,'FontSize',fsize)
+        set([y1 x1],'FontName',font,'FontSize',fsize)
+        set(leg,'FontName',font,'FontSize',fsize)
+        axis([0 1.5e-3 0 5e4])
+    case 'shearYZ'
+    case 'shearXZ'
+    case 'compressionZ'
+        height = SampDims(3);
+        area = SampDims(1)*SampDims(2);
+        
+        stressZ1 = abs(FZ1/area);
+        stressZ2 = abs(FZ2/area);
+        
+        strainZ1 = abs(DispZ1/height);
+        strainZ2 = abs(DispZ2/height);
+        
+        % Fit data
+        [ModEqn1,ModGOF1,Modulus1,ModulusCI1] = fitdata(stressZ1,strainZ1,'comp')
+        [ModEqn2,ModGOF2,Modulus2,ModulusCI2] = fitdata(stressZ2,strainZ2,'comp')
+        
+        figure('Name','Compressive Stress/Strain Comparison','NumberTitle','off')
+        plot(ModEqn1,'m-',strainZ1,stressZ1,'b.')
+        grid on
+        hold on
+        plot(ModEqn2,'r-.',strainZ2,stressZ2,'k*')
+        x1 = xlabel('Compressive Strain (mm/mm)');
+        y1 = ylabel('Stress (Pa)');
+        leg = legend('Non-Layered Data','Non-Layered Fit',...
+            'Layered Data','Layered Fit','Location','best');
+        set(gca,'FontName',font,'FontSize',fsize)
+        set([y1 x1],'FontName',font,'FontSize',fsize)
+        set(leg,'FontName',font,'FontSize',fsize)
+        axis([0 1.5e-3 0 5e4])
+    case 'compressionY'
+    case 'compressionX'
+        
+end
+
+
+end
+
+function [Time,DispX,DispY,DispZ,FX,FY,FZ] = importfile(filename, startRow, endRow)
+%IMPORTFILE Import numeric data from a text file as column vectors.
+%   [TIME,DISPX,DISPY,DISPZ,FX,FY,FZ] = IMPORTFILE(FILENAME) Reads data
+%   from text file FILENAME for the default selection.
+%
+%   [TIME,DISPX,DISPY,DISPZ,FX,FY,FZ] = IMPORTFILE(FILENAME, STARTROW,
+%   ENDROW) Reads data from rows STARTROW through ENDROW of text file
+%   FILENAME.
+%
+% Example:
+%   [Time,DispX,DispY,DispZ,FX,FY,FZ] = importfile('CompForce.dat',1, 25);
+%
+%    See also TEXTSCAN.
+
+% Auto-generated by MATLAB on 2014/08/04 09:09:26
+
+%% Initialize variables.
+if nargin<=2
+    startRow = 1;
+    endRow = inf;
+end
+
+%% Read columns of data as strings:
+% For more information, see the TEXTSCAN documentation.
+formatSpec = '%15s%15s%15s%15s%15s%15s%s%[^\n\r]';
+
+%% Open the text file.
+fileID = fopen(filename,'r');
+
+%% Read columns of data according to format string.
+% This call is based on the structure of the file used to generate this
+% code. If an error occurs for a different file, try regenerating the code
+% from the Import Tool.
+dataArray = textscan(fileID, formatSpec, endRow(1)-startRow(1)+1, 'Delimiter', '', 'WhiteSpace', '', 'HeaderLines', startRow(1)-1, 'ReturnOnError', false);
+for block=2:length(startRow)
+    frewind(fileID);
+    dataArrayBlock = textscan(fileID, formatSpec, endRow(block)-startRow(block)+1, 'Delimiter', '', 'WhiteSpace', '', 'HeaderLines', startRow(block)-1, 'ReturnOnError', false);
+    for col=1:length(dataArray)
+        dataArray{col} = [dataArray{col};dataArrayBlock{col}];
+    end
+end
+
+%% Close the text file.
+fclose(fileID);
+
+%% Convert the contents of columns containing numeric strings to numbers.
+% Replace non-numeric strings with NaN.
+raw = repmat({''},length(dataArray{1}),length(dataArray)-1);
+for col=1:length(dataArray)-1
+    raw(1:length(dataArray{col}),col) = dataArray{col};
+end
+numericData = NaN(size(dataArray{1},1),size(dataArray,2));
+
+for col=[1,2,3,4,5,6,7]
+    % Converts strings in the input cell array to numbers. Replaced non-numeric
+    % strings with NaN.
+    rawData = dataArray{col};
+    for row=1:size(rawData, 1);
+        % Create a regular expression to detect and remove non-numeric prefixes and
+        % suffixes.
+        regexstr = '(?<prefix>.*?)(?<numbers>([-]*(\d+[\,]*)+[\.]{0,1}\d*[eEdD]{0,1}[-+]*\d*[i]{0,1})|([-]*(\d+[\,]*)*[\.]{1,1}\d+[eEdD]{0,1}[-+]*\d*[i]{0,1}))(?<suffix>.*)';
+        try
+            result = regexp(rawData{row}, regexstr, 'names');
+            numbers = result.numbers;
+            
+            % Detected commas in non-thousand locations.
+            invalidThousandsSeparator = false;
+            if any(numbers==',');
+                thousandsRegExp = '^\d+?(\,\d{3})*\.{0,1}\d*$';
+                if isempty(regexp(thousandsRegExp, ',', 'once'));
+                    numbers = NaN;
+                    invalidThousandsSeparator = true;
+                end
+            end
+            % Convert numeric strings to numbers.
+            if ~invalidThousandsSeparator;
+                numbers = textscan(strrep(numbers, ',', ''), '%f');
+                numericData(row, col) = numbers{1};
+                raw{row, col} = numbers{1};
+            end
+        catch me
+        end
+    end
+end
+
+
+%% Allocate imported array to column variable names
+Time = cell2mat(raw(:, 1));
+DispX = cell2mat(raw(:, 2));
+DispY = cell2mat(raw(:, 3));
+DispZ = cell2mat(raw(:, 4));
+FX = cell2mat(raw(:, 5));
+FY = cell2mat(raw(:, 6));
+FZ = cell2mat(raw(:, 7));
+
+end
+
+function [ModEqn,ModGOF,Modulus,ModulusCI] = fitdata(Stress,Strain,testtype)
+%% Set Plot Controls
+ebwidth = 0.1;  % Errorbar cap width
+font = 'Palatino Linotype';
+fsize = 11;
+msize = 5;
+switch testtype
+    case 'comp'
+        xlab = 'Compressive Strain (mm/mm)';
+        figure('Name','Compressive Stress/Strain','NumberTitle','off')
+    case 'shear'
+        xlab = 'Shear Strain (rad)';
+        figure('Name','Shear Stress/Strain','NumberTitle','off')
+end
+    
+maxIndex = find(Stress==max(Stress),1);
+MaxStrain = Strain(maxIndex);
+exclusions = excludedata(Strain,Stress,...
+    'domain',[0 MaxStrain]);
+ft = fittype({'x'});
+[ModEqn,ModGOF] = fit(Strain,Stress,...
+    ft,'Exclude',exclusions)
+Mod = coeffvalues(ModEqn);
+Modulus = Mod(1);
+ModCI = confint(ModEqn);
+ModulusCI = ModCI(:,1);
+
+% Plot Stress vs. Strain
+plot(ModEqn,Strain,Stress)
+%         hold on
+%         plot(ModEqn2,'g-')
+grid on
+x1 = xlabel(xlab);
+y1 = ylabel('Stress (Pa)');
+leg = legend('Data','Fit','Location','northwest');
+set(gca,'FontName',font,'FontSize',fsize)
+set([y1 x1],'FontName',font,'FontSize',fsize)
+set(leg,'FontName',font,'FontSize',fsize)
+Adjust = input('Would you like to adjust the fit? Yes(1) or No (0)\n');
+if Adjust == 1
+    usermax = input('Enter domain to fit. [xmin xmax]\n');
+    exclusions = excludedata(Strain,Stress,...
+        'domain',usermax);
+    [ModEqn,ModGOF] = fit(Strain,Stress,...
+        ft,'Exclude',exclusions)
+    Mod = coeffvalues(ModEqn);
+    Modulus = Mod(1);
+    ModCI = confint(ModEqn);
+    ModulusCI = ModCI(:,1);
+    figure('Name','Shear Stress/Strain, Adjusted Fit','NumberTitle','off')
+    plot(ModEqn,Strain,Stress)
+    %         hold on
+    %         plot(ModEqn2,'g-')
+    grid on
+    x1 = xlabel(xlab);
+    y1 = ylabel('Stress (Pa)');
+    leg = legend('Data','Fit','Location','northwest');
+    set(gca,'FontName',font,'FontSize',fsize)
+    set([y1 x1],'FontName',font,'FontSize',fsize)
+    set(leg,'FontName',font,'FontSize',fsize)
+end
+end
